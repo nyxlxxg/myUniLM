@@ -15,7 +15,8 @@ import torch.nn.functional as F
 from torch.nn.modules.loss import _Loss
 from transformers.modeling_utils import PreTrainedModel
 from configuration_unilm import UnilmConfig
-from transformers.modeling_bert import load_tf_weights_in_bert, BertPooler, BertIntermediate, BertOutput, BertPredictionHeadTransform, BertSelfOutput, BertLMPredictionHead, BertOnlyMLMHead, BertOnlyMLMHead, BertEmbeddings, BertOnlyNSPHead
+from transformers.modeling_bert import load_tf_weights_in_bert, BertPooler, BertIntermediate, BertOutput, BertPredictionHeadTransform, BertSelfOutput, BertLMPredictionHead, BertOnlyMLMHead, BertOnlyMLMHead, BertOnlyNSPHead
+from modeling_bert import BertEmbeddings
 
 logger = logging.getLogger(__name__)
 
@@ -188,7 +189,7 @@ class UnilmModel(UnilmPreTrainedModel):
             input_ids, token_type_ids, attention_mask)
 
         embedding_output = self.embeddings(
-            input_ids, token_type_ids)
+            input_ids, token_type_ids, is_hierarchical=True)
         encoded_layers = self.encoder(embedding_output, extended_attention_mask,
                                       output_all_encoded_layers=output_all_encoded_layers)
         sequence_output = encoded_layers[-1]
