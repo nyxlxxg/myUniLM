@@ -180,7 +180,7 @@ class UnilmModel(UnilmPreTrainedModel):
         else:
             raise NotImplementedError
         extended_attention_mask = extended_attention_mask.to(
-            dtype=next(self.parameters()).dtype)  # fp16 compatibility
+            dtype=torch.float32)  # fp16 compatibility
         extended_attention_mask = (1.0 - extended_attention_mask) * -10000.0
         return extended_attention_mask
 
