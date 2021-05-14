@@ -1,11 +1,12 @@
 python decode_seq2seq.py \
   --model_type unilm  \
-  --model_name_or_path "./data/model/"  \
-  --model_recover_path "./output/model.bin"  \
+  --model_name_or_path "/workspace/model/pretrain/Unilm/"  \
+  --model_recover_path "/workspace/NLP-Platform/unilm/output/model.5.bin"  \
   --max_seq_length 512  \
-  --input_file "./data/test_data.json"  \
-  --output_file "./output/predict_.json"  \
+  --max_src_length 1024 \
+  --input_file "/workspace/nlp/nyg/unilm/data/dev.csv"  \
+  --output_file "/workspace/nlp/nyg/unilm/data/predict_.json"  \
   --do_lower_case  \
   --batch_size 32 \
   --beam_size 5  \
-  --max_tgt_length 128
+  --max_tgt_length 64
