@@ -35,6 +35,7 @@ from tqdm import tqdm, trange
 import pickle
 import numpy as np
 import torch
+import json
 from torch.utils.data import DataLoader, RandomSampler
 from torch.utils.data.distributed import DistributedSampler
 
@@ -87,6 +88,8 @@ def main():
                         help="The maximum total input sequence length after WordPiece tokenization. \n"
                              "Sequences longer than this will be truncated, and sequences shorter \n"
                              "than this will be padded.")
+    parser.add_argument("--max_src_length", default=512, type=int,
+                        help="The maximum total input sequence length adjust by xxg.")
 
     # decoding parameters
     parser.add_argument('--fp16', action='store_true',
@@ -148,7 +151,7 @@ def main():
 
     bi_uni_pipeline = []
     bi_uni_pipeline.append(utils_seq2seq.Preprocess4Seq2seqDecode(list(tokenizer.vocab.keys()), tokenizer.convert_tokens_to_ids,
-                                                                  args.max_seq_length, max_tgt_length=args.max_tgt_length))
+                                                                  args.max_src_length, max_tgt_length=args.max_tgt_length))
 
     # Prepare model
     mask_word_id, eos_word_ids, sos_word_id = tokenizer.convert_tokens_to_ids(
@@ -186,10 +189,10 @@ def main():
         torch.cuda.empty_cache()
         model.eval()
         next_i = 0
-        max_src_length = args.max_seq_length - 2 - args.max_tgt_length
+        max_src_length = args.max_src_length - 2 - args.max_tgt_length
 
         with open(args.input_file, encoding="utf-8") as fin:
-            input_lines = [x.strip() for x in fin.readlines()]
+            input_lines = [json.loads(x.strip()).get("src_text") for x in fin.readlines()]
             if args.subset > 0:
                 logger.info("Decoding subset: %d", args.subset)
                 input_lines = input_lines[:args.subset]

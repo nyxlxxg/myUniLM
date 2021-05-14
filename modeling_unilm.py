@@ -209,7 +209,7 @@ class UnilmModelIncr(UnilmModel):
             input_ids, token_type_ids, attention_mask)
 
         embedding_output = self.embeddings(
-            input_ids, token_type_ids, position_ids)
+            input_ids, token_type_ids, position_ids, is_hierarchical=True)
         encoded_layers = self.encoder(embedding_output,
                                       extended_attention_mask,
                                       output_all_encoded_layers=output_all_encoded_layers,
@@ -528,7 +528,7 @@ class UnilmForSeq2SeqDecode(UnilmPreTrainedModel):
                 kk_scores += last_eos * (-10000.0) + last_seq_scores
                 kk_scores = torch.reshape(kk_scores, [batch_size, K * K])
                 k_scores, k_ids = torch.topk(kk_scores, k=K)
-                back_ptrs = torch.div(k_ids, K)
+                back_ptrs = torch.floor_divide(k_ids, K)
                 kk_ids = torch.reshape(kk_ids, [batch_size, K * K])
                 k_ids = torch.gather(kk_ids, 1, k_ids)
             step_back_ptrs.append(back_ptrs)
