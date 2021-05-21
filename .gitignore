@@ -5,4 +5,6 @@ model/
 output/
 data/
 code/
+result/
+.DS_Store
 log

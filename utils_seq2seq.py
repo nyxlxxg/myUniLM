@@ -8,6 +8,8 @@ import numpy as np
 import torch
 import torch.utils.data
 
+from copy_untils import generate_copy_labels
+
 
 
 def get_random_word(vocab_words):
@@ -305,6 +307,10 @@ class Preprocess4Seq2seq(Pipeline):
         tokens_a, tokens_b = truncate_tokens_pair(tokens_a, tokens_b, self.max_len)
         # Add Special Tokens
         tokens = ['[CLS]'] + tokens_a + ['[SEP]'] + tokens_b + ['[SEP]']
+
+        source_labels, target_labels = generate_copy_labels(tokens_a, tokens_b) # 最长公共子序列
+        copy_labels = [1] + source_labels + [1] + target_labels + [1]  # copy 序列预测的模型
+
         segment_ids = [4]*(len(tokens_a)+2) + [5]*(len(tokens_b)+1)
         # For masked Language Models
         # the number of prediction is sometimes less than max_pred when sequence is short
@@ -394,6 +400,10 @@ class Preprocess4Seq2seq(Pipeline):
         input_mask[second_st:second_end, second_st:second_end].copy_(
             self._tril_matrix[:second_end-second_st, :second_end-second_st])
 
+        copy_mask = [1] * len(copy_labels)
+        copy_mask.extend([0]*(self.max_len - len(copy_labels)))
+        copy_labels.extend([0]*(self.max_len - len(copy_labels)))
+
         # Zero Padding for masked target
         if self.max_pred > n_pred:
             n_pad = self.max_pred - n_pred
@@ -404,7 +414,7 @@ class Preprocess4Seq2seq(Pipeline):
             if masked_weights is not None:
                 masked_weights.extend([0]*n_pad)
 
-        return (input_ids, segment_ids, input_mask, masked_ids, masked_pos, masked_weights, next_sentence_label)
+        return (input_ids, segment_ids, input_mask, masked_ids, masked_pos, masked_weights, next_sentence_label, copy_labels, copy_mask)
 
 
 class Preprocess4BiLM(Pipeline):

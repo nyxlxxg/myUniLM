@@ -168,7 +168,7 @@ def main():
     print(args.model_recover_path)
     for model_recover_path in glob.glob(args.model_recover_path.strip()):
         logger.info("***** Recover model: %s *****", model_recover_path)
-        model_recover = torch.load(model_recover_path)
+        model_recover = torch.load(model_recover_path,map_location=torch.device('cpu'))
         model = model_class.from_pretrained(args.model_name_or_path, state_dict=model_recover, config=config, mask_word_id=mask_word_id, search_beam_size=args.beam_size, length_penalty=args.length_penalty,
                                             eos_id=eos_word_ids, sos_id=sos_word_id, forbid_duplicate_ngrams=args.forbid_duplicate_ngrams, forbid_ignore_set=forbid_ignore_set, ngram_size=args.ngram_size, min_len=args.min_len)
         del model_recover

@@ -70,6 +70,10 @@ def main():
                         help="Pretrained config name or path if not the same as model_name")
     parser.add_argument("--tokenizer_name", default="", type=str,
                         help="Pretrained tokenizer name or path if not the same as model_name")
+    parser.add_argument("--require_copy", default=0, type=int,
+                        help="是否需要在模型训练过程中引入copy机制")
+    parser.add_argument("--num_class", default=0, type=int,
+                        help="copy机制增加的类别数量")
 
     # Other parameters
     parser.add_argument("--max_seq_length", default=128, type=int,
@@ -327,16 +331,19 @@ def main():
             for step, batch in enumerate(iter_bar):
                 batch = [
                     t.to(device) if t is not None else None for t in batch]
-                input_ids, segment_ids, input_mask, lm_label_ids, masked_pos, masked_weights, _ = batch
-                masked_lm_loss = model(input_ids, segment_ids, input_mask, lm_label_ids,
-                                       masked_pos=masked_pos, masked_weights=masked_weights)
+                input_ids, segment_ids, input_mask, lm_label_ids, masked_pos, masked_weights, _, copy_labels, copy_mask = batch
+                masked_lm_loss, masked_copy_loss = model(input_ids, segment_ids, input_mask, lm_label_ids,
+                                       masked_pos=masked_pos, masked_weights=masked_weights, copy_labels=copy_labels, copy_mask=copy_mask)
                 if n_gpu > 1:    # mean() to average on multi-gpu.
                     # loss = loss.mean()
                     masked_lm_loss = masked_lm_loss.mean()
-                loss = masked_lm_loss
+                    masked_copy_loss = masked_copy_loss.mean()
+                loss = masked_lm_loss + 2 * masked_copy_loss
 
                 # logging for each step (i.e., before normalization by args.gradient_accumulation_steps)
-                iter_bar.set_description('Iter (loss=%5.3f)' % loss.item())
+                iter_bar.set_description('Iter (total loss=%5.3f)' % loss.item())
+                iter_bar.set_description('Iter (lm loss=%5.3f)' % masked_lm_loss.item())
+                iter_bar.set_description('Iter (copy loss=%5.3f)' % masked_copy_loss.item())
 
                 # ensure that accumlated gradients are normalized
                 if args.gradient_accumulation_steps > 1:
