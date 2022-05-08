@@ -1,15 +1,11 @@
 # coding=utf-8
-
-
+import json
 from random import randint, shuffle, choice
 from random import random as rand
 import math
 import numpy as np
 import torch
 import torch.utils.data
-
-from copy_untils import generate_copy_labels
-
 
 
 def get_random_word(vocab_words):
@@ -232,21 +228,30 @@ class Seq2SeqDataset(torch.utils.data.Dataset):
         #         assert len(src_tk) > 0
         #         assert len(tgt_tk) > 0
         #         self.ex_list.append((src_tk, tgt_tk))
+        with open(file, "r", encoding="utf-8") as f:
+            file_data = json.load(f)
+            for i, line in enumerate(file_data):
+                if line.get("dataset","") == "train":
+                    src_tk = tokenizer.tokenize(line["src_txt"])
+                    tgt_tk = tokenizer.tokenize(line["tgt_txt"])
+                    assert len(src_tk) > 0
+                    assert len(tgt_tk) > 0
+                    self.ex_list.append((src_tk, tgt_tk))
 
-        file_data = open(file, "r", encoding='utf-8')
-        #
-        threads = min(8, cpu_count())
-        with Pool(threads) as p:
-            annotate_ = partial(
-                self.read_data,
-                tokenizer=self.tokenizer)
-            self.ex_list = list(
-                tqdm(
-                    p.imap(annotate_, file_data.readlines(), chunksize=32),
-                    total=len(file_data.readlines()),
-                    desc="convert squad examples to features",
-                )
-            )
+        # file_data = open(file, "r", encoding='utf-8')
+        # #
+        # threads = min(8, cpu_count())
+        # with Pool(threads) as p:
+        #     annotate_ = partial(
+        #         self.read_data,
+        #         tokenizer=self.tokenizer)
+        #     self.ex_list = list(
+        #         tqdm(
+        #             p.imap(annotate_, file_data.readlines(), chunksize=32),
+        #             total=len(file_data.readlines()),
+        #             desc="convert squad examples to features",
+        #         )
+        #     )
         # fin = open("look_new.json", "w",encoding="utf-8")
         # for jj, m in enumerate(self.ex_list):
         #     fin.write(str(jj)+"\t"+str(m)+"\n")
@@ -301,15 +306,10 @@ class Preprocess4Seq2seq(Pipeline):
     def __call__(self, instance):
         next_sentence_label = None
         tokens_a, tokens_b = instance[:2]
-        tokens_a = self.tokenizer.tokenize(tokens_a)
-        tokens_b = self.tokenizer.tokenize(tokens_b)
         # -3  for special tokens [CLS], [SEP], [SEP]
         tokens_a, tokens_b = truncate_tokens_pair(tokens_a, tokens_b, self.max_len)
         # Add Special Tokens
         tokens = ['[CLS]'] + tokens_a + ['[SEP]'] + tokens_b + ['[SEP]']
-
-        source_labels, target_labels = generate_copy_labels(tokens_a, tokens_b) # 最长公共子序列
-        copy_labels = [1] + source_labels + [1] + target_labels + [1]  # copy 序列预测的模型
 
         segment_ids = [4]*(len(tokens_a)+2) + [5]*(len(tokens_b)+1)
         # For masked Language Models
@@ -400,10 +400,6 @@ class Preprocess4Seq2seq(Pipeline):
         input_mask[second_st:second_end, second_st:second_end].copy_(
             self._tril_matrix[:second_end-second_st, :second_end-second_st])
 
-        copy_mask = [1] * len(copy_labels)
-        copy_mask.extend([0]*(self.max_len - len(copy_labels)))
-        copy_labels.extend([0]*(self.max_len - len(copy_labels)))
-
         # Zero Padding for masked target
         if self.max_pred > n_pred:
             n_pad = self.max_pred - n_pred
@@ -414,7 +410,7 @@ class Preprocess4Seq2seq(Pipeline):
             if masked_weights is not None:
                 masked_weights.extend([0]*n_pad)
 
-        return (input_ids, segment_ids, input_mask, masked_ids, masked_pos, masked_weights, next_sentence_label, copy_labels, copy_mask)
+        return (input_ids, segment_ids, input_mask, masked_ids, masked_pos, masked_weights, next_sentence_label)
 
 
 class Preprocess4BiLM(Pipeline):

@@ -1,10 +1,7 @@
 .idea/
 __pycache__/
-glue_output/
-model/
-output/
-data/
-code/
-result/
 .DS_Store
+
+
+output/
 log

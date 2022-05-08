@@ -327,29 +327,13 @@ class UnilmForLM(UnilmPreTrainedModel):
         return total_loss
 
 
-class CopyClassifier(nn.Module):
-    """Created by ningyuguang. 执行序列分类，3分类BIO."""
-    def __init__(self, config):
-        super(CopyClassifier, self).__init__()
-        self.dense_prelogits = nn.Linear(config.hidden_size, config.hidden_size)
-        self.dense_logits = nn.Linear(config.hidden_size, 3)
-
-    def forward(self, hidden_status):
-        prelogits = self.dense_prelogits(hidden_status)
-        logits = self.dense_logits(prelogits)
-        return logits
-
-
 class UnilmForSeq2Seq(UnilmPreTrainedModel):
     """refer to BertForPreTraining"""
     def __init__(self, config):
         super(UnilmForSeq2Seq, self).__init__(config)
         self.bert = UnilmModel(config)
         self.cls = BertOnlyMLMHead(config)
-        # 增加BIO copy机制 减少生成模型出现的专业性错误
-        self.copy = CopyClassifier(config)
         self.crit_mask_lm = nn.CrossEntropyLoss(reduction='none')
-        self.ce_loss_fct = nn.CrossEntropyLoss()
         if hasattr(config, 'label_smoothing') and config.label_smoothing:
             self.crit_mask_lm_smoothed = LabelSmoothingLoss(
                 config.label_smoothing, config.vocab_size, ignore_index=0, reduction='none')
@@ -365,32 +349,12 @@ class UnilmForSeq2Seq(UnilmPreTrainedModel):
         self._tie_or_clone_weights(self.cls.predictions.decoder,
                                    self.bert.embeddings.word_embeddings)
 
-    def forward(self, input_ids, token_type_ids=None, attention_mask=None, masked_lm_labels=None, masked_pos=None, masked_weights=None, copy_labels=None, copy_mask=None, num_tokens_a=None, num_tokens_b=None):
+    def forward(self, input_ids, token_type_ids=None, attention_mask=None, masked_lm_labels=None, masked_pos=None, masked_weights=None, num_tokens_a=None, num_tokens_b=None):
         sequence_output, __ = self.bert(
             input_ids, token_type_ids, attention_mask, output_all_encoded_layers=False)
 
         def gather_seq_out_by_pos(seq, pos):
             return torch.gather(seq, 1, pos.unsqueeze(2).expand(-1, -1, seq.size(-1)))
-
-        def gather_seq_out_by_pos_average(seq, pos, mask):
-            batch_size, max_token_num = pos.size(0), pos.size(-1)
-            pos_vec = torch.gather(seq, 1, pos.view(batch_size, -1).unsqueeze(
-                2).expand(-1, -1, seq.size(-1))).view(batch_size, -1, max_token_num, seq.size(-1))
-            mask = mask.type_as(pos_vec)
-            pos_vec_masked_sum = (
-                pos_vec * mask.unsqueeze(3).expand_as(pos_vec)).sum(2)
-            return pos_vec_masked_sum / mask.sum(2, keepdim=True).expand_as(pos_vec_masked_sum)
-
-        def gather_copy_out_by_pos(seq, pos, labels):
-            # 通过位置掩码向量获取当前seq [4,1024,768]中有效token(pos->copy_mask [4, 1024])，每一个seq中有效字符长度是不相同的
-            # 将seq 3维转化维2维
-            # batch中每条样本的第一个元素为[CLS],该元素不在BIO中，要去掉这个元素,错开一位
-            seq_vec = seq[:,1:,:].contiguous().view(-1, 768)
-            pos_vec = pos[:,1:].contiguous().view(-1)
-            labels_vec = labels[:, 1:].contiguous().view(-1)
-            seq_masked = seq_vec[pos_vec==1]
-            labels_masked = labels_vec[pos_vec==1]
-            return seq_masked, labels_masked
 
         def loss_mask_and_normalize(loss, mask):
             mask = mask.type_as(loss)
@@ -406,12 +370,6 @@ class UnilmForSeq2Seq(UnilmPreTrainedModel):
                     sequence_output, masked_pos)
                 prediction_scores = self.cls(sequence_output_masked)
             return prediction_scores
-        # 获取copy后的向量，通过masked_copy 取出对应的向量
-        copy_output_masked, copy_labels_masked = gather_copy_out_by_pos(sequence_output, copy_mask, copy_labels)
-        # 获取copy后向量进入序列预测模型
-        copy_scores_masked = self.copy(copy_output_masked)
-        # 计算序列预测的loss
-        masked_copy_loss = self.ce_loss_fct(copy_scores_masked, copy_labels_masked)
 
         sequence_output_masked = gather_seq_out_by_pos(
             sequence_output, masked_pos)
@@ -425,7 +383,7 @@ class UnilmForSeq2Seq(UnilmPreTrainedModel):
         masked_lm_loss = loss_mask_and_normalize(
             masked_lm_loss.float(), masked_weights)
 
-        return masked_lm_loss, masked_copy_loss
+        return masked_lm_loss
 
 
 class UnilmForSeq2SeqDecode(UnilmPreTrainedModel):
